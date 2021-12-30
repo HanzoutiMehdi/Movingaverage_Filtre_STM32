@@ -30,9 +30,9 @@
 
 /*NOTCH FILTRE*/
 NotchFiltre  hnotch;
-#define SAMPLE_TIME_MS_TASK            10 /*ms*/
+#define SAMPLE_TIME_MS_TASK            10 /*ms*/  //500 Hz
 
-#define NOTCH_FILTRE_CENTER_HZ         5.1f
+#define NOTCH_FILTRE_CENTER_HZ         5.0f
 #define NOTCH_FILTRE_WIDTH_HZ          0.1f
 #define NOTCH_FILTRE_SAMPLETIME_S      (0.001f* SAMPLE_TIME_MS_TASK) /*ms to sencoed*/
 
@@ -58,23 +58,53 @@ uint8_t float_toString_Third(float value,float value2 ,float value3,char *ch);
 #define PRINT_VALUE                0U
 int16_t  Acc[3];
 
-uint8_t test1, test2;
-float inputFreq_Hz=1.0f ;/*2Hz*/
 
+
+
+typedef enum {ACCELRO, SIN_WAVE,DUAL_SIN_WAVE, THRID_SIN_WAVE} InType;
+typedef struct{
+	InType Type;
+    float inputFreq1_Hz;   /*2Hz*/
+    float inputFreq2_Hz;
+    float inputFreq3_Hz ;   /*2Hz*/
+
+}inputSimuTypeDef;
+
+
+typedef struct{
+
+	         inputSimuTypeDef   In;
+	         uint8_t fir_enable;
+	         uint8_t iir_enable;
+	         uint8_t notch_enable;
+}SimuleTypeDef;
+
+SimuleTypeDef  hSim;
+
+
+
+
+
+
+#define ACC
 /**
   * @brief  This function is executed in case of error occurrence.
   * @retval None
   */
 void vmainTask(void const * argument)
 {
-    float pi =3.14;
-    float value;
-    uint16_t freq=150;
-    uint16_t Am=1000;
-    uint16_t shift =0;
-	/*init */
+   	/*init */
+    float notch_out;
+   	float inputSignal;
 
+   	/*Init Sim*/
+  	hSim.In.inputFreq1_Hz=1.0f ;   /*1Hz*/
+  	hSim.In.inputFreq2_Hz=30.0f;    /*30Hz*/
+  	hSim.In.inputFreq3_Hz=12.0f ;   /*12Hz*/
 
+  	/*Enable Filtre */
+  	hSim.fir_enable=1;
+    hSim.In.Type=DUAL_SIN_WAVE;
 
     /*Init FIR*/
 	FIRFiltre_Init(&lpfAcc);
@@ -90,55 +120,74 @@ void vmainTask(void const * argument)
 	{
 
       osDelay(SAMPLE_TIME_MS_TASK); /*100hz*/
+      /*get time ----*/
+      uint32_t time_s=HAL_GetTick();
+
 
       (void)BSP_ACCELERO_GetXYZ(Acc);
-      /*FIR update*/
-      FIRFiltre_Update(&lpfAcc, Acc[1]);
-      /*FIR update*/
-      IIRFiltre_Update(&hiir, Acc[1]);
-
-
-      float inputSin = 100.0f*sin(2.0f*M_PI*inputFreq_Hz*(0.001f*HAL_GetTick() ));
-      float notch_out=NotchFiltre_Update(&hnotch,inputSin);
-
-      /*Notch filtre update*/
-      //NotchFiltre_Update(&hnotch,Acc[1]);
-
-      SerialPrint_DualValue(inputSin,notch_out);
-
-      //SerialPrint_DualValue(Acc[1],lpfAcc.out);
-   if (test1)
-   {
-	   lpfAcc.out=0;
-   }
-   if (test2)
-   {
-	   hiir.out=0;
-   }
-
-    //  SerialPrint_ThriValue(Acc[1],lpfAcc.out,hiir.out);
 
 
 
-#if 0
-      for (uint16_t i=0; i< 10000; i++)
+      float inputSin = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq1_Hz*(0.001f*time_s ));
+
+
+      float inputSin2 = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq2_Hz*(0.001f*time_s ));
+
+      float inputSin3 = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq3_Hz*(0.001f*time_s ));
+
+     if (hSim.In.Type==DUAL_SIN_WAVE)
+     {
+   	     /**/
+    	inputSignal=inputSin+inputSin2;
+     }
+
+    else if (hSim.In.Type==THRID_SIN_WAVE)
       {
-    	  value= Am*sin (2*pi*freq*i)+shift;
-
-
-    	  SerialPrint_Value(value,WAIT_NEXT_VALUE);
-    	  freq=400;
-    	  value= Am/2*sin (2*pi*freq*i)+shift;
-    	  SerialPrint_Value(value,WAIT_NEXT_VALUE);
-
-    	  freq=1200;
-    	  value= 2*Am*sin (2*pi*freq*i)+shift;
-
-    	  SerialPrint_Value(value,PRINT_VALUE);
-
+     	     /**/
+    	inputSignal=inputSin+inputSin2+inputSin3;
       }
 
-#endif
+    else if (hSim.In.Type==SIN_WAVE)
+      {
+     	     /**/
+    	inputSignal=inputSin;
+      }
+    else
+    {
+    	inputSignal=Acc[1];
+    }
+
+
+
+     if (hSim.notch_enable==1)
+	 {
+    	 notch_out=NotchFiltre_Update(&hnotch,inputSignal);
+	 }
+     if (hSim.fir_enable==1)
+     {
+      /*FIR update*/
+      FIRFiltre_Update(&lpfAcc,inputSignal);
+     }
+     if (hSim.iir_enable==1)
+     {
+        /*FIR update*/
+        IIRFiltre_Update(&hiir, inputSignal);
+      }
+
+      /*Display filtre output value------------------------------------------*/
+     if (hSim.notch_enable==1)
+	 {
+    	  SerialPrint_DualValue(inputSignal,   notch_out);
+	 }
+     if ((hSim.fir_enable==1) &&  (hSim.iir_enable==1))
+     {
+    	  SerialPrint_ThriValue(inputSignal,lpfAcc.out,hiir.out);
+     }
+     if ((hSim.fir_enable==1) &&  (hSim.iir_enable==0))
+     {
+    	 SerialPrint_DualValue(inputSignal,   lpfAcc.out);
+     }
+
 
 
 	}

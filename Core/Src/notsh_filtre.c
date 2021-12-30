@@ -70,9 +70,10 @@ float NotchFiltre_Update(NotchFiltre *filt, float inp)
 
   /*Compute new output*/
   //
-  filt->y[0]= (filt->alpha *filt->x[0] + 2.0f* (filt->alpha - 8.0f)*filt->x[1] +  filt->alpha*filt->x[2]);
-  filt->y[0]=  filt->y[0]  -(2.0f *(filt->alpha-8.0f)*filt->y[1] +  (filt->alpha -filt->beta) * filt->y[2]);
-  filt->y[0]=  filt->y[0]  /(filt->alpha+filt->beta);
+  filt->y[0]= ((filt->alpha *filt->x[0] + 2.0f* (filt->alpha - 8.0f)*filt->x[1] +  filt->alpha*filt->x[2])
+               -(2.0f *(filt->alpha-8.0f)*filt->y[1] +  (filt->alpha -filt->beta) * filt->y[2]))
+                 /(filt->alpha+filt->beta);
+
 
 return filt->y[0];
 
