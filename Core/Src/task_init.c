@@ -25,6 +25,10 @@
 
 uint8_t Task_Init(void);
 void vmainTask(void const * argument);
+void fft_task(void const * argument);
+
+QueueHandle_t xQueue_fft;
+
 
 /*error code*/
 #define ICARE_PLUS_TASK_CREATION_FAIL    1U
@@ -37,9 +41,17 @@ uint8_t Task_Init(void)
 {
 	BaseType_t xReturned;
 	uint8_t ret;
-
+#if 1
 	/* Creat Startup Task */
 	xReturned = xTaskCreate(vmainTask,"Main_Task",400U ,NULL,(tskIDLE_PRIORITY+1U), NULL );
+
+	if (xReturned!=pdPASS )
+	{
+		GlobalError(ICARE_PLUS_TASK_CREATION_FAIL);
+	}
+#endif
+	/* Creat FFT Task */
+	xReturned = xTaskCreate(fft_task,"FFT_Task",400U ,NULL,(tskIDLE_PRIORITY+1U), NULL );
 
 	if (xReturned!=pdPASS )
 	{
@@ -48,13 +60,16 @@ uint8_t Task_Init(void)
 
 
 
+    /* Create a queue capable of containing 10 unsigned long values. */
+	xQueue_fft = xQueueCreate( 10, sizeof( uint32_t ) );
+
 
 	ret=BSP_ACCELERO_Init();
+
 	if (ret !=0)
 	{
 		while(1);
 	}
-
 
 
   /* Start scheduler */

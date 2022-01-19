@@ -26,7 +26,9 @@
 #include "myfir.h"
 #include "iir_filtre.h"
 #include "notsh_filtre.h"
+#include "rc_filtre.h"
 
+extern QueueHandle_t xQueue_fft;
 
 /*NOTCH FILTRE*/
 NotchFiltre  hnotch;
@@ -53,7 +55,7 @@ uint8_t SerialPrint_Value(float value, uint8_t type);
 uint8_t SerialPrint_DualValue(float value1,float value2);
 uint8_t SerialPrint_ThriValue(float value1,float value2,float value3);
 uint8_t float_toString_Third(float value,float value2 ,float value3,char *ch);
-
+static void StoreNewSample(FFT_TypeDef *hfft, float in);
 #define WAIT_NEXT_VALUE            1U
 #define PRINT_VALUE                0U
 int16_t  Acc[3];
@@ -61,32 +63,37 @@ int16_t  Acc[3];
 
 
 
-typedef enum {ACCELRO, SIN_WAVE,DUAL_SIN_WAVE, THRID_SIN_WAVE} InType;
-typedef struct{
-	InType Type;
-    float inputFreq1_Hz;   /*2Hz*/
-    float inputFreq2_Hz;
-    float inputFreq3_Hz ;   /*2Hz*/
-
-}inputSimuTypeDef;
 
 
-typedef struct{
 
-	         inputSimuTypeDef   In;
-	         uint8_t fir_enable;
-	         uint8_t iir_enable;
-	         uint8_t notch_enable;
-}SimuleTypeDef;
+
 
 SimuleTypeDef  hSim;
 
+float Gyro[3];
 
+RCFiltre  rc_filt;
 
-
-
-
+float cutoffFreqHz = 20.0f;
 #define ACC
+
+
+
+
+
+
+
+static void filtre_Init(void);
+static float Get_NewSample(void);
+static float filtre_Sample(float in);
+
+
+static void Display_Sample(float inputSignal, float output);
+
+extern FFT_TypeDef  in_fft;
+extern FFT_TypeDef  out_fft;
+
+
 /**
   * @brief  This function is executed in case of error occurrence.
   * @retval None
@@ -94,17 +101,22 @@ SimuleTypeDef  hSim;
 void vmainTask(void const * argument)
 {
    	/*init */
-    float notch_out;
-   	float inputSignal;
+	float inputSignal;
+    float filt_out;
+
 
    	/*Init Sim*/
-  	hSim.In.inputFreq1_Hz=1.0f ;   /*1Hz*/
+  	hSim.In.inputFreq1_Hz=5.0f ;   /*5Hz*/
   	hSim.In.inputFreq2_Hz=30.0f;    /*30Hz*/
   	hSim.In.inputFreq3_Hz=12.0f ;   /*12Hz*/
 
   	/*Enable Filtre */
   	hSim.fir_enable=1;
     hSim.In.Type=DUAL_SIN_WAVE;
+
+    /*Enable DFT*/
+    hSim.fft.dft_enable=1;
+
 
     /*Init FIR*/
 	FIRFiltre_Init(&lpfAcc);
@@ -116,78 +128,58 @@ void vmainTask(void const * argument)
 	NotchFiltre_Init(&hnotch,NOTCH_FILTRE_CENTER_HZ,NOTCH_FILTRE_WIDTH_HZ, NOTCH_FILTRE_SAMPLETIME_S);
 
 
+	 /*Rc Filter */
+	 RCFilter_Init(&rc_filt,  cutoffFreqHz,  NOTCH_FILTRE_SAMPLETIME_S);
+
 	while(1)
 	{
 
       osDelay(SAMPLE_TIME_MS_TASK); /*100hz*/
-      /*get time ----*/
-      uint32_t time_s=HAL_GetTick();
-
-
-      (void)BSP_ACCELERO_GetXYZ(Acc);
 
 
 
-      float inputSin = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq1_Hz*(0.001f*time_s ));
+      /*Input STep get new sample (hSim.In.Type) -----------------------------------*/
+      inputSignal= Get_NewSample();
 
 
-      float inputSin2 = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq2_Hz*(0.001f*time_s ));
+     /*---FIltre Step --------------------------------------------------*/
+     filt_out= filtre_Sample(inputSignal);
 
-      float inputSin3 = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq3_Hz*(0.001f*time_s ));
 
-     if (hSim.In.Type==DUAL_SIN_WAVE)
+     /*FFT Step---------------------------------------------------------*/
+     if(hSim.fft.fft_enable==1U)
      {
-   	     /**/
-    	inputSignal=inputSin+inputSin2;
+   	 // fft(&in_fft, inputSignal);
+   	 // fft(&out_fft, filt_out);
+
      }
 
-    else if (hSim.In.Type==THRID_SIN_WAVE)
-      {
-     	     /**/
-    	inputSignal=inputSin+inputSin2+inputSin3;
-      }
-
-    else if (hSim.In.Type==SIN_WAVE)
-      {
-     	     /**/
-    	inputSignal=inputSin;
-      }
-    else
-    {
-    	inputSignal=Acc[1];
-    }
-
-
-
-     if (hSim.notch_enable==1)
-	 {
-    	 notch_out=NotchFiltre_Update(&hnotch,inputSignal);
-	 }
-     if (hSim.fir_enable==1)
+     if((hSim.fft.dft_enable==1U) ||(hSim.fft.fft_enable==1U))
      {
-      /*FIR update*/
-      FIRFiltre_Update(&lpfAcc,inputSignal);
+    	 StoreNewSample(&in_fft,inputSignal );
+    	 StoreNewSample(&out_fft,filt_out );
+
+    	  if (out_fft.current_sample==FFT_LENGTH/2)
+    	  {
+    		  uint32_t Process_buff=FIRST_HALF;
+    		  /*Send HalfBuffer Process*/
+    		  xQueueSend(xQueue_fft,  ( void * ) &Process_buff, 0 );
+    	  }
+
+
+
+    	  if (out_fft.current_sample==0)
+    	  {
+    		  uint32_t Process_buff=SECOND_HALF;
+    		  /*Send HalfBuffer Process*/
+    		  xQueueSend(xQueue_fft,  ( void * ) &Process_buff, 0 );
+    	  }
+
+
      }
-     if (hSim.iir_enable==1)
-     {
-        /*FIR update*/
-        IIRFiltre_Update(&hiir, inputSignal);
-      }
 
       /*Display filtre output value------------------------------------------*/
-     if (hSim.notch_enable==1)
-	 {
-    	  SerialPrint_DualValue(inputSignal,   notch_out);
-	 }
-     if ((hSim.fir_enable==1) &&  (hSim.iir_enable==1))
-     {
-    	  SerialPrint_ThriValue(inputSignal,lpfAcc.out,hiir.out);
-     }
-     if ((hSim.fir_enable==1) &&  (hSim.iir_enable==0))
-     {
-    	 SerialPrint_DualValue(inputSignal,   lpfAcc.out);
-     }
-
+      Display_Sample(inputSignal,filt_out);
 
 
 	}
@@ -195,6 +187,171 @@ void vmainTask(void const * argument)
 
 
 }
+
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+static void StoreNewSample(FFT_TypeDef *hfft, float in)
+{
+   uint32_t nbre_sample  =hfft->current_sample;
+
+  uint32_t n,k;
+
+
+  /*Prepare Input Buffer*/
+  hfft->Input[nbre_sample].real=in;
+  hfft->Input[nbre_sample].imag=0.0;
+
+  hfft->current_sample++;
+
+
+  if (nbre_sample>=FFT_LENGTH)
+  {
+	  /*Send Second HalfBuffer Process*/
+	  hfft->current_sample=0;
+
+  }
+
+}
+
+
+
+
+/**
+  * @brief  Display_Sample
+  * @retval Send to USB
+
+  */
+static void Display_Sample(float inputSignal, float output)
+{
+
+   	  SerialPrint_DualValue(inputSignal,   output);
+
+}
+
+/**
+  * @brief  filtre_Sample
+  * @retval Process Filtre depending hSim.fir / notch/iir ..
+
+  */
+static float filtre_Sample(float inputSignal)
+{
+	float out=0.0;
+
+	switch (hSim.filtre_Type)
+	{
+
+    	case FIR_FILTRE:
+    	{
+    	   /*FIR update*/
+    	   FIRFiltre_Update(&lpfAcc,inputSignal);
+    	   out=lpfAcc.out;
+     		break;
+    	}
+
+    	case IIR_FILTRE:
+    	{
+           /*IIR update*/
+           IIRFiltre_Update(&hiir, inputSignal);
+           out= hiir.out;
+    		break;
+    	}
+
+    	case NOTCH_FILTRE:
+    	{
+    		out=NotchFiltre_Update(&hnotch,inputSignal);
+    		break;
+    	}
+    	case RC_FILTRE:
+    	{
+    		RCFilter_Update(&rc_filt,inputSignal);
+    		out= rc_filt.out[0];
+    		break;
+
+    	}
+    	default:
+    	{
+    		while(1);
+    	}
+
+	}
+
+
+	return out;
+
+ }
+
+
+
+
+
+/**
+  * @brief  Get_NewSample
+  * @retval Get New Sample of an input Signa according to hSim.In.Type
+
+  */
+static void filtre_Init(void)
+{
+
+}
+
+/**
+  * @brief  Get_NewSample
+  * @retval Get New Sample of an input Signa according to hSim.In.Type
+
+  */
+static float Get_NewSample(void)
+{
+	float inputSignal;
+	    /*get time ----*/
+	    uint32_t time_s=HAL_GetTick();
+
+	    float inputSin = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq1_Hz*(0.001f*time_s ));
+
+
+	    float inputSin2 = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq2_Hz*(0.001f*time_s ));
+
+	    float inputSin3 = 100.0f*sin(2.0f*M_PI*hSim.In.inputFreq3_Hz*(0.001f*time_s ));
+
+	   if (hSim.In.Type==DUAL_SIN_WAVE)
+	   {
+	 	     /**/
+	  	inputSignal=inputSin+inputSin2;
+	   }
+
+	  else if (hSim.In.Type==THRID_SIN_WAVE)
+	    {
+	   	     /**/
+	  	inputSignal=inputSin+inputSin2+inputSin3;
+	    }
+
+	  else if (hSim.In.Type==SIN_WAVE)
+	    {
+	   	     /**/
+	  	inputSignal=inputSin;
+	    }
+	    else if (hSim.In.Type==GYRO_WAVE)
+	    {
+	  	//    (void)BSP_GYRO_GetXYZ(Gyro);
+	  	 // inputSignal=Gyro[1];
+
+	    }
+	    else
+	  {
+	  	  (void)BSP_ACCELERO_GetXYZ(Acc);
+	  	inputSignal=Acc[1];
+	  }
+
+
+	   return  inputSignal;
+
+}
+
+
+
+
 
 /**
   * @brief  Serial Print to Oscilo

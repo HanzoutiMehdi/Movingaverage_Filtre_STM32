@@ -57,6 +57,85 @@ void Error_Handler(void);
 void GlobalError(uint16_t err);
 /* USER CODE END EFP */
 
+#define FFT_LENGTH         256
+
+
+typedef struct
+{
+	float real;
+	float imag;;
+
+}ComplexTypeDef;
+
+typedef enum{  NO_WIND, HM_WIND, HN_WIND }fftWindTyped;
+
+typedef struct
+{
+	ComplexTypeDef  Input[FFT_LENGTH];
+	float  Result[FFT_LENGTH*2];
+	uint32_t        current_sample;
+    fftWindTyped    fft_windowing;
+} FFT_TypeDef;
+/* USER CODE END EM */
+
+
+#define FIRST_HALF           1
+#define SECOND_HALF          2
+
+typedef enum{  FIR_FILTRE, IIR_FILTRE, RC_FILTRE, NOTCH_FILTRE }FiltreType;
+
+
+typedef enum {ACCELRO, SIN_WAVE,DUAL_SIN_WAVE, THRID_SIN_WAVE,GYRO_WAVE} InType;
+typedef struct{
+	InType Type;
+    float inputFreq1_Hz;   /*2Hz*/
+    float inputFreq2_Hz;
+    float inputFreq3_Hz ;   /*2Hz*/
+
+}inputSimuTypeDef;
+
+
+
+
+typedef struct
+{
+  uint8_t fft_enable;
+  uint8_t dft_enable;
+  uint8_t arm_enable;
+
+
+}fftType_TypedDef;
+
+typedef struct{
+
+	         inputSimuTypeDef   In;
+	         FiltreType    filtre_Type;
+
+	         uint8_t fir_enable;
+	         uint8_t iir_enable;
+	         uint8_t notch_enable;
+	         fftType_TypedDef fft;
+
+
+}SimuleTypeDef;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* Private defines -----------------------------------------------------------*/
 #define CS_I2C_SPI_Pin GPIO_PIN_3
 #define CS_I2C_SPI_GPIO_Port GPIOE

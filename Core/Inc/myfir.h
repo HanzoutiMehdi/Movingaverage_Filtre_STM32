@@ -20,9 +20,9 @@
 
 
 
-#define N 81
+#define Nn 81
 
-#define FIR_FILTRE_LENGTH N
+#define FIR_FILTRE_LENGTH Nn
 typedef struct{
 	float buf[FIR_FILTRE_LENGTH];
 	uint8_t bufIndex;
