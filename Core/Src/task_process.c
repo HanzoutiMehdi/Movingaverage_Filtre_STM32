@@ -27,6 +27,7 @@
 #include "iir_filtre.h"
 #include "notsh_filtre.h"
 #include "rc_filtre.h"
+#include "moving_avg.h"
 
 extern QueueHandle_t xQueue_fft;
 
@@ -65,7 +66,7 @@ int16_t  Acc[3];
 
 
 
-
+MovFiltre movfil;
 
 
 SimuleTypeDef  hSim;
@@ -130,6 +131,11 @@ void vmainTask(void const * argument)
 
 	 /*Rc Filter */
 	 RCFilter_Init(&rc_filt,  cutoffFreqHz,  NOTCH_FILTRE_SAMPLETIME_S);
+
+
+	 /*Moving Average Filter Init*/
+	 MovFiltre_Init(&movfil);
+
 
 	while(1)
 	{
@@ -256,6 +262,12 @@ static float filtre_Sample(float inputSignal)
            /*IIR update*/
            IIRFiltre_Update(&hiir, inputSignal);
            out= hiir.out;
+    		break;
+    	}
+    	case MOVING_AVG_FILTRE:
+    	{
+
+    		MovFiltre_Update(&movfil,inputSignal);
     		break;
     	}
 

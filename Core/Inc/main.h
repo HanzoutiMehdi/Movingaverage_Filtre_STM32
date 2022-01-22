@@ -82,7 +82,7 @@ typedef struct
 #define FIRST_HALF           1
 #define SECOND_HALF          2
 
-typedef enum{  FIR_FILTRE, IIR_FILTRE, RC_FILTRE, NOTCH_FILTRE }FiltreType;
+typedef enum{  FIR_FILTRE, IIR_FILTRE, RC_FILTRE, NOTCH_FILTRE,MOVING_AVG_FILTRE }FiltreType;
 
 
 typedef enum {ACCELRO, SIN_WAVE,DUAL_SIN_WAVE, THRID_SIN_WAVE,GYRO_WAVE} InType;
@@ -115,7 +115,8 @@ typedef struct{
 	         uint8_t iir_enable;
 	         uint8_t notch_enable;
 	         fftType_TypedDef fft;
-
+	         FFT_TypeDef     *in_fft;
+	         FFT_TypeDef     *out_fft;
 
 }SimuleTypeDef;
 

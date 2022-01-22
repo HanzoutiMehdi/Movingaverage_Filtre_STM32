@@ -203,6 +203,11 @@ void fft_task(void const * argument)
    arm_cfft_radix4_init_f32(&arm_fft2, FFT_LENGTH, 0, 1);
 
 
+   /*init struct*/
+   hSim.in_fft=  &in_fft;
+   hSim.out_fft=  &out_fft;
+
+
 
 	while(1)
 	{
