@@ -20,7 +20,7 @@
 
 
 
-#define MOV_FILTRE_LENGTH 20
+#define MOV_FILTRE_LENGTH 40
 typedef struct{
 	float buf[MOV_FILTRE_LENGTH];
 	uint8_t bufIndex;

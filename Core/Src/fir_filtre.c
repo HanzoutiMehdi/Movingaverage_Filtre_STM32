@@ -12,12 +12,28 @@
 #include "myfir.h"
 
 
-//#define MOVING_AVG_FILRE
-
-static float FIR_IMPULSE_RESPONSE[FIR_FILTRE_LENGTH];
 
 
+/*FIR Low pass fc= 2hz, fs=100Hz No windowing */
+float h[Nn] = {
+-6.2989E-04,-6.6830E-04,-7.2249E-04,-7.9193E-04,-8.7384E-04,-9.6305E-04,
+-1.0520E-03,-1.1308E-03,-1.1873E-03,-1.2075E-03,-1.1758E-03,-1.0754E-03,
+-8.8881E-04,-5.9866E-04,-1.8799E-04,3.5899E-04,1.0563E-03,1.9154E-03,
+2.9450E-03,4.1502E-03,5.5322E-03,7.0879E-03,8.8099E-03,1.0686E-02,
+1.2700E-02,1.4830E-02,1.7053E-02,1.9338E-02,2.1656E-02,2.3971E-02,
+2.6247E-02,2.8449E-02,3.0540E-02,3.2484E-02,3.4246E-02,3.5796E-02,
+3.7105E-02,3.8150E-02,3.8910E-02,3.9372E-02,3.9527E-02,3.9372E-02,
+3.8910E-02,3.8150E-02,3.7105E-02,3.5796E-02,3.4246E-02,3.2484E-02,
+3.0540E-02,2.8449E-02,2.6247E-02,2.3971E-02,2.1656E-02,1.9338E-02,
+1.7053E-02,1.4830E-02,1.2700E-02,1.0686E-02,8.8099E-03,7.0879E-03,
+5.5322E-03,4.1502E-03,2.9450E-03,1.9154E-03,1.0563E-03,3.5899E-04,
+-1.8799E-04,-5.9866E-04,-8.8881E-04,-1.0754E-03,-1.1758E-03,-1.2075E-03,
+-1.1873E-03,-1.1308E-03,-1.0520E-03,-9.6305E-04,-8.7384E-04,-7.9193E-04,
+-7.2249E-04,-6.6830E-04,-6.2989E-04
+};
 
+
+#if 0
 /*FIR Low pass fc= 20hz, fs=100Hz No windowing */
 float h[Nn] = {
 -7.7672E-05,-6.5113E-04,-3.5111E-04,5.3820E-04,8.2522E-04,-1.1184E-04,
@@ -35,7 +51,7 @@ float h[Nn] = {
 1.1083E-03,-7.1674E-04,-1.1907E-03,-1.1184E-04,8.2522E-04,5.3820E-04,
 -3.5111E-04,-6.5113E-04,-7.7672E-05
 };
-
+#endif
 
 
 
@@ -124,15 +140,6 @@ void FIRFiltre_Init(FIRFiltre *fir)
 
 	fir->out = 0.0f;
 
-#ifdef MOVING_AVG_FILRE
-	/*Init h[n] Moving avearge Filtre*/
-	for (uint8_t n=0;n<FIR_FILTRE_LENGTH ;n++)
-	{
-		FIR_IMPULSE_RESPONSE[n] = (float)1/(float)FIR_FILTRE_LENGTH;
-	}
-
-#endif
-
 
 }
 
@@ -176,14 +183,7 @@ float FIRFiltre_Update(FIRFiltre *fir, float inp)
 
 		}
 		/*Multiply impulse reponse with shifted sample and add to output*/
-
-#ifdef MOVING_AVG_FILRE
-		fir->out += FIR_IMPULSE_RESPONSE[n] * fir->buf[sumIndex];
-
-#else
 		fir->out += h[n] * fir->buf[sumIndex];
-
-#endif
 
 	}
 

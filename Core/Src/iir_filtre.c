@@ -47,7 +47,7 @@ void  IIRFiltre_Init(IIRFiltre *iir, float alpha)
 }
 
 /**
-  * @brief  FIRFiltre_Update
+  * @brief  RFiltre_Update
   * @retval int
   */
 float IIRFiltre_Update(IIRFiltre *iir, float inp)

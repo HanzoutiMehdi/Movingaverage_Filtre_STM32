@@ -267,7 +267,8 @@ static float filtre_Sample(float inputSignal)
     	case MOVING_AVG_FILTRE:
     	{
 
-    		MovFiltre_Update(&movfil,inputSignal);
+    		out=MovFiltre_Update(&movfil,inputSignal);
+
     		break;
     	}
 
